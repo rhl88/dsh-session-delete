@@ -1,0 +1,16 @@
+# debug artifacts written next to index.js at runtime
+*.log
+
+# build outputs (tarball / source archive are produced into ../dist)
+dist/
+*.tgz
+*.zip
+
+# dependencies
+node_modules/
+
+# editor / OS noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

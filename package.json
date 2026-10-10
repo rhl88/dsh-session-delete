@@ -1,0 +1,32 @@
+{
+  "name": "@local/dsh-session-delete",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Permanently delete sessions from the sidebar session menu, beyond archive-only session management.",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true
+    }
+  },
+  "files": [
+    "index.js",
+    "paths.js",
+    "client.js",
+    "cordis.patch.yml",
+    "locale/*.json",
+    "README.md",
+    "INSTALL.zh.md"
+  ],
+  "license": "MIT"
+}

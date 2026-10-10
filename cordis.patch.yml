@@ -1,0 +1,14 @@
+# Session-delete bundle patch: one dual-face row. The node half registers the
+# delete route on the composition's webServer; the browser half (declared via
+# the package manifest's dsh.client) adds the sidebar session-menu entry.
+- insert:
+    - id: session-delete
+      name: '@local/dsh-session-delete'
+      config:
+        # Milliseconds to wait for a live session to release its persistence
+        # write handles before the physical log is removed.
+        timeoutMs: 20000
+        # Override only for non-default deployments; defaults resolve through
+        # $DSH_HOME ('sessions' and 'storages' beneath the harness home).
+        # sessionsRoot: ~
+        # storagesRoot: ~

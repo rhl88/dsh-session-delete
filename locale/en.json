@@ -1,0 +1,4 @@
+{
+  "title": "Session Delete",
+  "description": "Adds a destructive “Delete session” entry to the sidebar session menu that permanently removes the session's record and history, beyond archive-only management."
+}
