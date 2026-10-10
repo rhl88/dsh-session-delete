@@ -5,17 +5,23 @@ DeepSeek Harness（DSH）插件：在侧边栏会话菜单里加入**删除会�
 ## 安装
 
 ```pwsh
-# 1. 装进 profile（tarball 或目录均可）
+# ① 从 GitHub 仓库安装（推荐；插件目录里展示的就是这条）
+dsh plugin add github:rhl88/dsh-session-delete
+
+# ② 从本地目录 / 预构建 tarball 安装
+dsh plugin add D:\path\to\dsh-session-delete
+dsh plugin add D:\path\to\local-dsh-session-delete-1.0.0.tgz
+
+# ③ 等价的手工方式（在 profile 目录里）
 cd C:\Users\Administrator\.dsh\profiles\desktop
-pnpm add D:\path\to\local-dsh-session-delete-1.0.0.tgz
-# 或：pnpm add D:\path\to\dsh-session-delete
+pnpm add github:rhl88/dsh-session-delete
+# 再把该目录 package.json 的 dsh.profile.bundles 设为：
+#   ["@deepseek-ai/dsh-base", "@deepseek-ai/dsh-web-app", "@local/dsh-session-delete"]
 
-# 2. 选择该 bundle（该目录的 package.json）
-#    "dsh": { "profile": { "bundles": [
-#       "@deepseek-ai/dsh-base", "@deepseek-ai/dsh-web-app", "@local/dsh-session-delete" ] } }
-
-# 3. 重启 DeepSeek Harness，并刷新 GUI 页面
+# 装完重启 DeepSeek Harness，并刷新 GUI 页面
 ```
+
+`dsh plugin add` / 插件页安装会**默认启用**该 bundle，不需要再手改 `dsh.profile.bundles`；手工 `pnpm add` 才需要自己加进列表。
 
 ## 注意事项
 

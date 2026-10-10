@@ -1,9 +1,8 @@
 {
   "name": "@local/dsh-session-delete",
   "version": "1.0.0",
-  "private": true,
   "type": "module",
-  "description": "Permanently delete sessions from the sidebar session menu, beyond archive-only session management.",
+  "description": "Permanently delete DSH sessions from the sidebar session menu, beyond archive-only session management.",
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",
@@ -28,5 +27,23 @@
     "README.md",
     "INSTALL.zh.md"
   ],
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "cordis",
+    "session",
+    "delete",
+    "purge"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rhl88/dsh-session-delete.git"
+  },
+  "homepage": "https://github.com/rhl88/dsh-session-delete#readme",
+  "bugs": {
+    "url": "https://github.com/rhl88/dsh-session-delete/issues"
+  },
+  "author": "holley",
   "license": "MIT"
 }

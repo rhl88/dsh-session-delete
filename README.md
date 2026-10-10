@@ -12,15 +12,26 @@ session's durable artifacts.
 
 在侧边栏会话菜单里加入**删除会话**：永久移除会话记录与完整历史，补足官方只能归档的限制。菜单项排在 置顶/重命名/分叉/归档 之后，带分隔线与危险色，点击后弹出确认对话框。
 
-**安装**（三步）
+**安装**（三种方式任选）
 
 ```pwsh
+# ① 从 GitHub 仓库安装（推荐；插件目录里展示的就是这条）
+dsh plugin add github:rhl88/dsh-session-delete
+
+# ② 从本地目录 / 预构建 tarball 安装
+dsh plugin add D:\path\to\dsh-session-delete
+dsh plugin add D:\path\to\local-dsh-session-delete-1.0.0.tgz
+
+# ③ 等价的手工方式（在 profile 目录里）
 cd C:\Users\Administrator\.dsh\profiles\desktop
-pnpm add <本仓库目录 或 local-dsh-session-delete-1.0.0.tgz>
-# 然后把该目录 package.json 的 dsh.profile.bundles 设为：
+pnpm add github:rhl88/dsh-session-delete
+# 再把 dsh.profile.bundles 设为：
 #   ["@deepseek-ai/dsh-base", "@deepseek-ai/dsh-web-app", "@local/dsh-session-delete"]
-# 最后重启 DeepSeek Harness 并刷新 GUI 页面
+
+# 装完重启 DeepSeek Harness，并刷新 GUI 页面
 ```
+
+`dsh plugin add` 与插件页安装会**默认启用**该 bundle；只有手工 `pnpm add` 才需要自己改 `dsh.profile.bundles`。
 
 **删除内容**：会话日志目录 `~/.dsh/sessions/<项目目录>/<会话id>/`、投影缓存 `~/.dsh/storages/session_projcache/sessions/<会话id>.json`，并从工作区记账、置顶集合、归档集合中清除该会话 id，随后广播 `api-session/removed`，侧边栏立即更新。不删除（v1）：内容寻址的附件字节（跨会话共享）、子代理会话日志、全文检索索引行（下次搜索会自动对账剔除）。
 
@@ -100,12 +111,17 @@ The package is a cordis bundle: `package.json` declares
 `session-delete` row, and the profile's `dsh.profile.bundles` selects it.
 
 ```pwsh
-# 1. install the package into the profile (either form works)
-cd C:\Users\Administrator\.dsh\profiles\desktop
-pnpm add D:\Backup\Documents\deepseek-harness\default-workspace\dsh-session-delete   # directory / link
-pnpm add D:\path\to\local-dsh-session-delete-1.0.0.tgz                             # packed tarball
+# 1. install (any of these)
+dsh plugin add github:rhl88/dsh-session-delete        # from this repository (recommended)
+dsh plugin add D:\path\to\dsh-session-delete          # from a local directory
+dsh plugin add D:\path\to\local-dsh-session-delete-1.0.0.tgz   # from a packed tarball
 
-# 2. select the bundle (package.json in the profile directory)
+# equivalently, by hand, from the profile directory:
+cd C:\Users\Administrator\.dsh\profiles\desktop
+pnpm add github:rhl88/dsh-session-delete
+
+# 2. `dsh plugin add` and the Plugins page enable the bundle by default.
+#    Only the manual `pnpm add` route needs the selection written into
 #    "dsh": { "profile": { "bundles": [
 #       "@deepseek-ai/dsh-base", "@deepseek-ai/dsh-web-app", "@local/dsh-session-delete" ] } }
 
