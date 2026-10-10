@@ -1,4 +1,4 @@
-# dsh-session-delete 安装说明
+# dsh-session-remove 安装说明
 
 DeepSeek Harness（DSH）插件：在侧边栏会话菜单里加入**删除会话**（永久移除会话记录与完整历史，补足只能归档的限制）。
 
@@ -16,7 +16,7 @@ dsh plugin add D:\path\to\local-dsh-session-delete-1.0.0.tgz
 cd C:\Users\Administrator\.dsh\profiles\desktop
 pnpm add github:rhl88/dsh-session-delete
 # 再把该目录 package.json 的 dsh.profile.bundles 设为：
-#   ["@deepseek-ai/dsh-base", "@deepseek-ai/dsh-web-app", "@local/dsh-session-delete"]
+#   ["@deepseek-ai/dsh-base", "@deepseek-ai/dsh-web-app", "dsh-session-remove"]
 
 # 装完重启 DeepSeek Harness，并刷新 GUI 页面
 ```
@@ -25,7 +25,7 @@ pnpm add github:rhl88/dsh-session-delete
 
 ## 注意事项
 
-- **只装一份。** 行 id（`session-delete`）与浏览器插槽 id 是固定的，同时选中两份安装（例如本包与 `@local/dsh-session-delete-v2`）会冲突。切换前先移除另一份：`pnpm remove @local/dsh-session-delete-v2`
+- **只装一份。** 行 id（`session-delete`）与浏览器插槽 id 是固定的，同一插件装两份（例如正式包 `dsh-session-remove` 与本机验证时用的 `-v2` 修订镜像）同时选中会冲突。切换前先移除另一份：`pnpm remove @local/dsh-session-delete-v2`
 - **改宿主端代码需要重启应用。** desktop 组合把 HMR 行的模块监视关掉了（`root: []`），只重载 profile 配置；且重新导入同一模块 URL 会命中 ESM 缓存。要免重启验证新版本，只能换包名或换目录（新的模块 URL）。
 - 客户端一半只要浏览器模块基线（`react`、`@deepseek-ai/dsh-client-store`、`@deepseek-ai/dsh-client-ui-primitives`），宿主一半只用 node 内置模块；包内**没有声明任何依赖**，因此没有版本兼容门槛。
 

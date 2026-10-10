@@ -1,5 +1,5 @@
 {
-  "name": "@local/dsh-session-delete",
+  "name": "dsh-session-remove",
   "version": "1.0.0",
   "type": "module",
   "description": "Permanently delete DSH sessions from the sidebar session menu, beyond archive-only session management.",

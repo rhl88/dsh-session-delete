@@ -1,5 +1,5 @@
 /**
- * Browser half of @local/dsh-session-delete.
+ * Browser half of dsh-session-remove.
  *
  * Adds a destructive "delete session" entry to the sidebar session context
  * menu (`sidebar.workspaces.session.menu.item`, order 500 — after pin/rename/
@@ -28,7 +28,7 @@
  * slot plugins.
  */
 window.__ModuleLoader__.load({
-  id: '@local/dsh-session-delete',
+  id: 'dsh-session-remove',
   factory(require) {
     var module = { exports: {} };
     var exports = module.exports;

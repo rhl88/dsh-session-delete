@@ -41,7 +41,7 @@ sandbox.window.__ModuleLoader__ = {
 sandbox.globalThis = sandbox;
 vm.runInNewContext(clientSource, sandbox, { filename: 'client.js' });
 assert.ok(loaded !== null, 'client bundle called __ModuleLoader__.load');
-assert.equal(loaded.id, '@local/dsh-session-delete', 'client module id');
+assert.equal(loaded.id, 'dsh-session-remove', 'client module id');
 assert.equal(typeof loaded.factory, 'function', 'client factory');
 
 const required = [];

@@ -1,4 +1,4 @@
-# @local/dsh-session-delete
+# dsh-session-remove
 
 DeepSeek Harness (cordis) bundle plugin adding **permanent session deletion** to
 the Web GUI. Stock DSH only archives sessions: the sidebar session menu gets a
@@ -26,7 +26,7 @@ dsh plugin add D:\path\to\local-dsh-session-delete-1.0.0.tgz
 cd C:\Users\Administrator\.dsh\profiles\desktop
 pnpm add github:rhl88/dsh-session-delete
 # 再把 dsh.profile.bundles 设为：
-#   ["@deepseek-ai/dsh-base", "@deepseek-ai/dsh-web-app", "@local/dsh-session-delete"]
+#   ["@deepseek-ai/dsh-base", "@deepseek-ai/dsh-web-app", "dsh-session-remove"]
 
 # 装完重启 DeepSeek Harness，并刷新 GUI 页面
 ```
@@ -123,7 +123,7 @@ pnpm add github:rhl88/dsh-session-delete
 # 2. `dsh plugin add` and the Plugins page enable the bundle by default.
 #    Only the manual `pnpm add` route needs the selection written into
 #    "dsh": { "profile": { "bundles": [
-#       "@deepseek-ai/dsh-base", "@deepseek-ai/dsh-web-app", "@local/dsh-session-delete" ] } }
+#       "@deepseek-ai/dsh-base", "@deepseek-ai/dsh-web-app", "dsh-session-remove" ] } }
 
 # 3. restart the app, then refresh the GUI page
 ```
@@ -131,9 +131,10 @@ pnpm add github:rhl88/dsh-session-delete
 Two notes:
 
 - **Install exactly one copy.** The row id (`session-delete`) and the browser
-  slot ids are fixed, so two installations (for example this package *and* the
-  `-v2` mirror below) selected at once collide. Remove the other one first:
-  `pnpm remove @local/dsh-session-delete-v2`.
+  slot ids are fixed, so two installations of this plugin — for example the
+  published `dsh-session-remove` *and* a local revisioned mirror such as the
+  `-v2` copy this desktop profile was verified with — selected at once collide.
+  Remove the other one first: `pnpm remove @local/dsh-session-delete-v2`.
 - **Host-half changes need an app restart.** The desktop composition sets the
   HMR row to `root: []` — module watching is off, only profile configuration
   reloads — and re-importing the *same* module URL returns the cached copy.

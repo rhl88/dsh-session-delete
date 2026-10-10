@@ -1,5 +1,5 @@
 /**
- * Host half of @local/dsh-session-delete.
+ * Host half of dsh-session-remove.
  *
  * Registers `POST /session-delete/delete` on the composition's webServer,
  * behind the same connection trust fence (Host/Origin + browser auth) the

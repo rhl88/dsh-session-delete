@@ -3,7 +3,7 @@
 # the package manifest's dsh.client) adds the sidebar session-menu entry.
 - insert:
     - id: session-delete
-      name: '@local/dsh-session-delete'
+      name: 'dsh-session-remove'
       config:
         # Milliseconds to wait for a live session to release its persistence
         # write handles before the physical log is removed.
