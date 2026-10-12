@@ -5,9 +5,11 @@
     - id: session-delete
       name: 'dsh-session-remove'
       config:
-        # Milliseconds to wait for a live session to release its persistence
-        # write handles before the physical log is removed.
-        timeoutMs: 20000
+        # Milliseconds of grace for a live session to release its persistence
+        # write handles before the physical log is removed. A session held by
+        # another surface is removed anyway (with a resurrection check), so
+        # this only decides how long a clean, unforced release gets.
+        timeoutMs: 8000
         # Override only for non-default deployments; defaults resolve through
         # $DSH_HOME ('sessions' and 'storages' beneath the harness home).
         # sessionsRoot: ~

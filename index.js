@@ -17,14 +17,18 @@
  *      serializes its operations, so one wedged operation would otherwise
  *      block this request forever. A timeout is recorded and the delete
  *      continues, because removing the files is the user's actual request.
- *   3. Wait (bounded) for the live session to leave `ctx.sessions`, i.e. for
- *      `session/disposed` to have run the persistence backend's final drain
- *      and closed its write handle — on Windows an open handle would block
- *      the file removal. Still live after the wait → 409, files untouched.
+ *   3. Wait (bounded, `timeoutMs`) for the live session to leave
+ *      `ctx.sessions`, which is what closes the persistence write handle. A
+ *      session held by another surface may never release, so the wait is a
+ *      grace period, not a veto: removal proceeds either way (Node opens files
+ *      with FILE_SHARE_DELETE on Windows, so a held handle does not block the
+ *      unlink and later appends vanish into the deleted inode).
  *   4. Remove the JSONL backend's session directory
  *      (`<sessionsRoot>/<projectKey(cwd)>/<encodeSegment(id)>`), falling back
  *      to a scan of project directories when the header's cwd does not name
- *      the expected location.
+ *      the expected location. A still-held session is re-checked for a
+ *      resurrection and removed again; a directory that keeps coming back is
+ *      reported as `remove-blocked` instead of silently surviving.
  *   5. Remove the projection-cache record document
  *      (`<storagesRoot>/session_projcache/sessions/<id>.json`).
  *   6. Best-effort registry accounting: detach the id from its workspace
@@ -69,6 +73,12 @@ const POLL_INTERVAL_MS = 200;
 
 /** Grace period after the store empties, letting the backend's drain finish. */
 const SETTLE_GRACE_MS = 300;
+
+/** Resurrection guard: how many times a still-held session's directory is re-checked. */
+const LIVE_VERIFY_ROUNDS = 5;
+
+/** Delay between resurrection checks, giving a held session a chance to write. */
+const LIVE_VERIFY_DELAY_MS = 1000;
 
 /** Body collection bound: a stalled request must not hold a handler open. */
 const BODY_TIMEOUT_MS = 10000;
@@ -271,49 +281,92 @@ export function apply(ctx, config = {}) {
       await step(`archive: ${archiveOutcome.timedOut ? 'TIMEOUT' : 'failed'} ${String(archiveOutcome.error?.message ?? archiveOutcome.error)}`);
     }
 
-    // 3. Wait for the live session to dispose so the backend's write handle
-    //    is closed and Windows removal cannot hit a share violation.
+    // 3. Give the holder a chance to release the session: when the deleted
+    //    session is the open one, the client's archive hop clears the main
+    //    view and the session disposes within a moment. A session held by any
+    //    other surface (a second window, a panel, a resident agent) may never
+    //    release, and refusing there would make the session undeletable — so
+    //    the wait is bounded and the removal proceeds regardless. Node opens
+    //    files with FILE_SHARE_DELETE on Windows, so the backend's open write
+    //    handle does not block the unlink; its later appends land in the
+    //    deleted inode and vanish. Step 4 therefore re-checks for a
+    //    resurrection and retries, and step 6 skips the unarchive so a
+    //    resurrected ghost stays hidden behind the archive gate.
     const deadline = Date.now() + timeoutMs;
+    let stillLive = false;
     while (ctx.sessions.get(sessionId) !== undefined) {
       if (Date.now() >= deadline) {
-        await step(`wait: still live after ${timeoutMs}ms -> 409`);
-        return {
-          status: 409,
-          body: {
-            code: 'session-busy',
-            message: `session '${sessionId}' did not release within ${timeoutMs} ms; close its view or restart the app, then retry`,
-          },
-        };
+        stillLive = true;
+        degraded.push('live-session');
+        await step(`wait: still live after ${timeoutMs}ms -> removing anyway`);
+        break;
       }
       await sleep(POLL_INTERVAL_MS);
     }
-    if (wasLive) await step('wait: disposed');
-    await sleep(SETTLE_GRACE_MS);
+    if (wasLive) await step(stillLive ? 'wait: skipped (still held)' : 'wait: disposed');
+    if (!stillLive) await sleep(SETTLE_GRACE_MS);
 
-    // 4. Remove the physical session directory located in step 1.
+    // 4. Remove the physical session directory located in step 1. While the
+    //    session is still held, the backend may write again through its open
+    //    handle, so the directory is re-checked and removed again.
     let removedLog = false;
+    let resurrected = false;
     if (dir !== undefined) {
       if (!isContainedPath(dir, resolve(sessionsRoot), sep)) {
         throw new Error(`session directory escapes the sessions root: ${dir}`);
       }
-      if (await isDirectory(dir)) {
-        try {
+      try {
+        if (await isDirectory(dir)) {
           await rm(dir, { recursive: true, force: true, maxRetries: 12, retryDelay: 250 });
           removedLog = true;
           await step(`rm: ok ${dir}`);
-        } catch (error) {
-          await step(`rm: FAILED ${String(error?.message ?? error)}`);
+        } else {
+          await step(`rm: no directory at ${dir} (already gone?)`);
+        }
+      } catch (error) {
+        await step(`rm: FAILED ${String(error?.message ?? error)}`);
+        return {
+          status: 500,
+          body: {
+            code: 'remove-failed',
+            message: `could not remove ${dir}: ${String(error?.message ?? error)}`,
+            degraded,
+          },
+        };
+      }
+      // A held session can write again through its open handle. Absence only
+      // counts once it survives a whole window, and a directory that keeps
+      // coming back is reported instead of being called a success.
+      if (stillLive) {
+        let removals = 0;
+        while (removals <= LIVE_VERIFY_ROUNDS) {
+          if (!(await isDirectory(dir))) {
+            await sleep(LIVE_VERIFY_DELAY_MS);
+            if (!(await isDirectory(dir))) break;
+          }
+          removals += 1;
+          resurrected = true;
+          await step(`verify: directory present (removal ${removals}/${LIVE_VERIFY_ROUNDS + 1}) — removing again`);
+          try {
+            await rm(dir, { recursive: true, force: true, maxRetries: 12, retryDelay: 250 });
+            removedLog = true;
+          } catch (error) {
+            await step(`verify: rm FAILED ${String(error?.message ?? error)}`);
+          }
+          await sleep(LIVE_VERIFY_DELAY_MS);
+        }
+        if (await isDirectory(dir)) {
+          degraded.push('remove-blocked');
+          await step('verify: directory still present -> 500');
           return {
             status: 500,
             body: {
-              code: 'remove-failed',
-              message: `could not remove ${dir}: ${String(error?.message ?? error)}`,
+              code: 'remove-blocked',
+              message: `session '${sessionId}' is still held: ${dir} kept reappearing. Close its view in every window (or restart the app) and retry.`,
               degraded,
             },
           };
         }
-      } else {
-        await step(`rm: no directory at ${dir} (already gone?)`);
       }
     } else {
       await step('rm: nothing on disk to remove');
@@ -350,15 +403,22 @@ export function apply(ctx, config = {}) {
     if (!detachOutcome.ok) degraded.push(detachOutcome.timedOut ? 'detach-timeout' : 'detach-failed');
     const unpinOutcome = await withTimeout('workspaceRegistry.unpinSession', 8000, () => ctx.workspaceRegistry.unpinSession(sessionId));
     if (!unpinOutcome.ok) degraded.push(unpinOutcome.timedOut ? 'unpin-timeout' : 'unpin-failed');
-    const unarchiveOutcome = await withTimeout('workspaceRegistry.unarchiveSession', 8000, () => ctx.workspaceRegistry.unarchiveSession(sessionId));
-    if (!unarchiveOutcome.ok) degraded.push(unarchiveOutcome.timedOut ? 'unarchive-timeout' : 'unarchive-failed');
-    await step(`accounting: detach=${detachOutcome.ok ? 'ok' : 'FAIL'} unpin=${unpinOutcome.ok ? 'ok' : 'FAIL'} unarchive=${unarchiveOutcome.ok ? 'ok' : 'FAIL'}`);
+    // A session that was still held keeps its archive flag: if a late drain
+    // recreates its log, the ghost stays hidden behind the archive gate
+    // instead of reappearing in the sidebar.
+    let unarchiveState = 'skipped';
+    if (!stillLive) {
+      const unarchiveOutcome = await withTimeout('workspaceRegistry.unarchiveSession', 8000, () => ctx.workspaceRegistry.unarchiveSession(sessionId));
+      unarchiveState = unarchiveOutcome.ok ? 'ok' : 'FAIL';
+      if (!unarchiveOutcome.ok) degraded.push(unarchiveOutcome.timedOut ? 'unarchive-timeout' : 'unarchive-failed');
+    }
+    await step(`accounting: detach=${detachOutcome.ok ? 'ok' : 'FAIL'} unpin=${unpinOutcome.ok ? 'ok' : 'FAIL'} unarchive=${unarchiveState}`);
 
     // 7. Tell every connected browser the session is gone.
     ctx.emit('api-session/removed', sessionId);
-    await step(`delete: done (removedLog=${removedLog} removedCache=${removedCache} degraded=[${degraded.join(',')}])`);
-    ctx.logger.info(`session-delete: removed session '${sessionId}' (log: ${removedLog}, projection cache: ${removedCache}, degraded: ${degraded.join(',') || 'none'})`);
-    return { status: 200, body: { ok: true, sessionId, removedLog, removedCache, degraded } };
+    await step(`delete: done (removedLog=${removedLog} removedCache=${removedCache} liveHeld=${stillLive} resurrected=${resurrected} degraded=[${degraded.join(',')}])`);
+    ctx.logger.info(`session-delete: removed session '${sessionId}' (log: ${removedLog}, projection cache: ${removedCache}, liveHeld: ${stillLive}, degraded: ${degraded.join(',') || 'none'})`);
+    return { status: 200, body: { ok: true, sessionId, removedLog, removedCache, liveHeld: stillLive, resurrected, degraded } };
   }
 
   /**

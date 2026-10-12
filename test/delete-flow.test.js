@@ -18,7 +18,7 @@
  *   6. malformed requests answer 400/415.
  */
 import assert from 'node:assert/strict';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -206,16 +206,26 @@ try {
     console.log(`case 2 ok: wedged registry does not block deletion (${elapsed} ms, degraded=${payload.degraded.join(',')})`);
   }
 
-  // --- 3. live session that never releases ---------------------------------
+  // --- 3. live session that never releases: removed anyway -----------------
   {
     const fixture = await makeFixture(sessionsRoot, storagesRoot, SESSION_ID, CWD);
     const live = new Map([[SESSION_ID, { header: { id: SESSION_ID, cwd: CWD } }]]);
-    const { run } = mountPlugin({ sessionsRoot, storagesRoot, timeoutMs: 1000, liveSessions: live });
+    const { run, calls } = mountPlugin({ sessionsRoot, storagesRoot, timeoutMs: 1000, liveSessions: live });
+    const startedAt = Date.now();
     const state = await run({ sessionId: SESSION_ID });
-    assert.equal(state.statusCode, 409, `expected 409, got ${state.statusCode}: ${state.body}`);
-    assert.equal(JSON.parse(state.body).code, 'session-busy');
-    assert.equal(existsSync(fixture.dir), true, 'a busy session keeps its files');
-    console.log('case 3 ok: a session that never releases answers 409 and keeps its files');
+    const elapsed = Date.now() - startedAt;
+    assert.equal(state.statusCode, 200, `expected 200, got ${state.statusCode}: ${state.body}`);
+    const payload = JSON.parse(state.body);
+    assert.equal(payload.ok, true);
+    assert.equal(payload.removedLog, true);
+    assert.equal(payload.liveHeld, true, 'the outcome must report the session was still held');
+    assert.equal(payload.resurrected, false);
+    assert.ok(payload.degraded.includes('live-session'), `degraded=${JSON.stringify(payload.degraded)}`);
+    assert.equal(existsSync(fixture.dir), false, 'files must be removed even while the session is held');
+    assert.deepEqual(calls.unarchive, [], 'a held session keeps its archive flag (a ghost stays hidden)');
+    assert.deepEqual(calls.detach, [SESSION_ID]);
+    assert.ok(elapsed < 20000, `the grace wait must stay bounded (took ${elapsed} ms)`);
+    console.log(`case 3 ok: a session held by another surface is still removed (${elapsed} ms, degraded=${payload.degraded.join(',')})`);
   }
 
   // --- 4. unauthenticated --------------------------------------------------
@@ -261,6 +271,32 @@ try {
     assert.ok(payload.degraded.includes('stat'), `degraded=${JSON.stringify(payload.degraded)}`);
     assert.equal(existsSync(fixture.dir), false, 'scan fallback must still remove the files');
     console.log(`case 7 ok: hung persistence stat still deletes via scan (degraded=${payload.degraded.join(',')})`);
+  }
+
+  // --- 8. a held session whose files keep reappearing ----------------------
+  {
+    const fixture = await makeFixture(sessionsRoot, storagesRoot, SESSION_ID, CWD);
+    const live = new Map([[SESSION_ID, { header: { id: SESSION_ID, cwd: CWD } }]]);
+    const { run } = mountPlugin({ sessionsRoot, storagesRoot, timeoutMs: 500, liveSessions: live });
+    // Simulate a writer that keeps recreating the log after every removal.
+    const writer = setInterval(() => {
+      try {
+        mkdirSync(fixture.dir, { recursive: true });
+        writeFileSync(join(fixture.dir, 'session.v4.jsonl.zstd'), 'late-append');
+      } catch {
+        // The test only needs the directory to come back.
+      }
+    }, 200);
+    try {
+      const state = await run({ sessionId: SESSION_ID });
+      assert.equal(state.statusCode, 500, `expected 500, got ${state.statusCode}: ${state.body}`);
+      const payload = JSON.parse(state.body);
+      assert.equal(payload.code, 'remove-blocked');
+      assert.ok(payload.degraded.includes('remove-blocked'), `degraded=${JSON.stringify(payload.degraded)}`);
+      console.log('case 8 ok: a directory that keeps reappearing reports remove-blocked instead of pretending success');
+    } finally {
+      clearInterval(writer);
+    }
   }
 } finally {
   await rm(root, { recursive: true, force: true });
